@@ -1,0 +1,667 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Introduction to Data Analysis with Python</title>
+<link rel="stylesheet" href="css/reveal.css">
+<link rel="stylesheet" href="css/theme/cci.css">
+<link href="https://fonts.googleapis.com/css?family=Poppins" rel="stylesheet">
+<!-- Theme used for syntax highlighting of code -->
+<link rel="stylesheet" href="lib/css/zenburn.css">
+<!-- Printing and PDF exports -->
+<script>
+var link = document.createElement( 'link' );
+link.rel = 'stylesheet';
+link.type = 'text/css';
+link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+document.getElementsByTagName( 'head' )[0].appendChild( link );
+</script>
+</head>
+<body>
+<div class="reveal">
+<!-- Header logo -->
+<!--img style="position:fixed;top:1em;right:1em;" src="img/logo_cci.png" width="15%"-->
+<!-- Slide Title -->
+<header style="position: absolute;top: 1em; left: 1em; z-index:10;"></header>
+
+
+<div class="slides">
+  <section data-menu-title="Title">
+  <h2>More Macro Writing with Fiji</h2>
+  
+  Lewis Mosby, Sam Garforth, Daniel Moore
+	  
+</section>
+   
+
+
+<section data-state="intro0">
+  <h2><b>Ideas for the Session</b></h2>
+  <ul>
+    <li>Can finish problems from last time
+    <li>Can practice some more with new problems
+    <li>Can start on assignment and ask any questions you have (hopefully we can point you in the right direction)
+  </ul>
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>(Previous Session) Task 4</b></h2>
+  
+  <b>Create a macro that:</b>
+  <br/><br/>
+	
+  <ol>
+    <li>Opens every image and performs a Z-projection on the fluorescence channel
+    <br/><br/>
+    <li>Counts the foci in the each image using whichever method you prefer
+    <br/><br/>
+    <li>Saves a csv file with the total number of foci in all images in the folder
+  </ol>
+	
+  <br/><br/>
+  <b>Hint:</b> consider how you would return a variable from the processFile function
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>(Previous Session) Task 4 Example Solution</b></h2>
+  
+<pre><code class="C">// Macro template to process multiple images in a folder
+
+// Open input window to enter input folder, output folder, and target suffix
+#@ File (label = "Input directory", style = "directory") input
+#@ File (label = "Output directory", style = "directory") output
+#@ String (label = "File suffix", value = ".tif") suffix
+
+// See also Process_Folder.py for a version of this code in the Python scripting language.
+
+// Use defined function(s)
+processFolder(input);
+
+// Define function to scan folders/subfolders/files to find files with correct suffix
+function processFolder(input) {
+
+	// Initialise total number of detected maxima
+	total = 0;
+
+	// Open file to store number of detected maxima
+	fileMaxima = File.open(output + File.separator + "Totals.csv");
+
+	// Find (ordered) list of files in folder
+	list = getFileList(input);
+	list = Array.sort(list);
+
+	// Loop over all files in folder
+	for (i = 0; i < list.length; i++) {
+
+		// If file is another folder, repeat process until individual file is found
+		if(File.isDirectory(input + File.separator + list[i]))
+			processFolder(input + File.separator + list[i]);
+
+		// If file is not a folder and ends with correct suffix, process using other function
+		if(endsWith(list[i], suffix)) {
+			number = processFile(input, output, list[i]);
+
+			// Output number of maxima detected to file
+			print(fileMaxima, list[i] + ": " + number);
+
+			// Store a running total of the number of detected maxima
+			total += number;
+		}
+	}
+
+	// Output total number of detected maxima to file
+	print(fileMaxima, "\nTotal number of detections: " + total);
+
+	// Close file
+	File.close(fileMaxima);
+}
+
+// Define function to process target files
+function processFile(input, output, file) {
+	print("Processing file: " + input + File.separator + file);
+
+	// Open file
+	open(input + "/" + file);
+	original = getTitle();
+
+	// Duplicate only channel 3
+	run("Duplicate...", "duplicate channels=3");
+	ch3 = getTitle();
+
+	// Take Z-projection of channel 3
+	run("Z Project...", "projection=[Max Intensity]");
+
+	// Close unneeded images
+	close(ch3);
+	close(original);
+
+	// Find maxima of projected image
+	run("Find Maxima...", "prominence=80 output=List");
+
+	// Store number of detected maxima
+	nMaxima = nResults;
+	print("Detected " + nResults + " maxima");
+
+	// Select results window
+	close();
+	selectWindow("Results");
+
+	// Save result to output fileselectWindow("Results"); 
+	saveAs("results", output + "/" + File.nameWithoutExtension + "_results.csv");
+	print("Saving data to: " + output);
+	run("Close"); // Close results window (not technically required)
+
+	// Return number of detected maxima
+	return nMaxima;
+}</code></pre>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>Task 1</b></h2>
+  
+  <b>Create a macro that:</b>
+  <br/><br/>
+  
+  <ol>
+    <li>Opens every image and performs a Z-projection on the fluorescence channel
+    <br/><br/>
+    <li>Applies a Gaussian blur filter to the Z-projection (with a variable Gaussian width)
+    <br/><br/>
+    <li>Counts the foci in the each image using whichever method you prefer
+    <br/><br/>
+    <li>Saves a csv file with the total number of foci in all images in the folder
+  </ol>
+  <br/><br/>
+  
+  <b>Hint:</b> consider how you would feed an additional variable to the processFile function
+  <br/><br/>
+	
+  <b>Try applying a Laplacian filter using a convolution instead and compare the results!</b>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>(Previous session) Task 1 Example Solution</b></h2>
+  
+  <pre><code class="C">// Macro template to process multiple images in a folder
+
+// Open input window to enter input folder, output folder, and target suffix
+#@ File (label = "Input directory", style = "directory") input
+#@ File (label = "Output directory", style = "directory") output
+#@ String (label = "File suffix", value = ".tif") suffix
+
+// See also Process_Folder.py for a version of this code in the Python scripting language.
+
+// Define sigma (width of Gaussian) used for filtering
+sigma = 3;
+
+// Use defined function(s)
+processFolder(input);
+
+// Define function to scan folders/subfolders/files to find files with correct suffix
+function processFolder(input) {
+
+	// Initialise total number of detected maxima
+	total = 0;
+
+	// Open file to store number of detected maxima
+	fileMaxima = File.open(output + File.separator + "Totals.csv");
+
+	// Find (ordered) list of files in folder
+	list = getFileList(input);
+	list = Array.sort(list);
+
+	// Loop over all files in folder
+	for (i = 0; i < list.length; i++) {
+
+		// If file is another folder, repeat process until individual file is found
+		if(File.isDirectory(input + File.separator + list[i]))
+			processFolder(input + File.separator + list[i]);
+
+		// If file is not a folder and ends with correct suffix, process using other function
+		if(endsWith(list[i], suffix)) {
+			print("File: " + list[i]);
+
+			// Find number of maxima in Z-projection of stack after Gaussian blurring
+			numbers = processFile(input, output, list[i], sigma);
+			print("   sigma =  " + sigma + " -> " + numbers + " maxima");
+
+			// Output number of maxima detected to file
+			print(fileMaxima, list[i] + ": " + numbers);
+
+			// Store a running total of the number of detected maxima
+			total += numbers;
+
+		}
+
+	}
+
+	// Output total number of detected maxima to file
+	print(fileMaxima, "\nTotal number of detections: " + total);
+
+	// Close file
+	File.close(fileMaxima);
+}
+
+// Define function to process target files
+function processFile(input, output, file, sigma) {
+
+	// Open file
+	open(input + "/" + file);
+	original = getTitle();
+
+	// Duplicate only channel 3
+	run("Duplicate...", "duplicate channels=3");
+	ch3 = getTitle();
+
+	// Take Z-projection of channel 3
+	run("Z Project...", "projection=[Max Intensity]");
+
+	// Apply Gaussian blur filter
+	run("Gaussian Blur...", "sigma=" + sigma);
+	// run("Convolve...", "text1=[-1 -1 -1\n-1 8 -1\n-1 -1 -1]");
+
+	// Close unneeded images
+	close(ch3);
+	close(original);
+
+	// Find maxima in projected image
+	run("Find Maxima...", "prominence=80 output=List");
+
+	// Store number of detected maxima
+	nMaxima = nResults;
+
+	// Select results window
+	close();
+	selectWindow("Results");
+
+	// Save result to output fileselectWindow("Results"); 
+	saveAs("results", output + "/" + File.nameWithoutExtension + "_results.csv");
+	run("Close"); // Close results window (not technically required)
+
+	// Return number of detected maxima
+	return nMaxima;
+}</code></pre>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>Task 2</b></h2>
+  
+  <b>Create a macro that:</b>
+  <br/><br/>
+  
+  <ol>
+    <li>Opens every image and performs a Z-projection on the fluorescence channel
+    <br/><br/>
+    <li>Applies Gaussian blur filters of different widths to the Z-projection
+    <br/><br/>
+    <li>Counts the foci in the each image using whichever method you prefer
+    <br/><br/>
+    <li>Finds the Gaussian width that generates the least maxima
+    <br/><br/>
+    <li>Saves a csv file with the total minimum number of foci in all images in the folder
+  </ol>
+  <br/><br/>
+  
+  <b>Hint:</b> try using a for loop that loops over different Gaussian widths
+  <br/><br/>
+	
+  <b>Does blurring the image help with particle detection?</b>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>(Previous session) Task 2 Example Solution</b></h2>
+  
+  <pre><code class="C">// Macro template to process multiple images in a folder
+
+// Open input window to enter input folder, output folder, and target suffix
+#@ File (label = "Input directory", style = "directory") input
+#@ File (label = "Output directory", style = "directory") output
+#@ String (label = "File suffix", value = ".tif") suffix
+
+// See also Process_Folder.py for a version of this code in the Python scripting language.
+
+// Define maximum sigma (width of Gaussian) used for filtering
+sigmaMax = 4;
+
+// Use defined function(s)
+processFolder(input);
+
+// Define function to scan folders/subfolders/files to find files with correct suffix
+function processFolder(input) {
+
+	// Initialise total number of detected maxima
+	total = 0;
+
+	// Open file to store number of detected maxima
+	fileMaxima = File.open(output + File.separator + "Totals.csv");
+
+	// Find (ordered) list of files in folder
+	list = getFileList(input);
+	list = Array.sort(list);
+
+	// Loop over all files in folder
+	for (i = 0; i < list.length; i++) {
+
+		// If file is another folder, repeat process until individual file is found
+		if(File.isDirectory(input + File.separator + list[i]))
+			processFolder(input + File.separator + list[i]);
+
+		// If file is not a folder and ends with correct suffix, process using other function
+		if(endsWith(list[i], suffix)) {
+			print("File: " + list[i]);
+
+			// Initialise variables to store value of sigma that finds the least objects
+			bestVal = 10000;
+			bestInd = sigmaMax + 1;
+
+			// Loop over different values of sigma
+			for (j = 0; j < sigmaMax; j++) {
+
+				// Find number of maxima in Z-projection of stack after Gaussian blurring
+				numbers = processFile(input, output, list[i], j);
+				print("   sigma =  " + j + " -> " + numbers + " maxima");
+
+				// Find best value of sigma
+				if (numbers < bestVal) {
+
+					bestVal = numbers;
+					bestInd = j;
+
+				}
+			}
+
+			// Print results for best value of sigma
+			print("   best value = " + bestInd + " -> " + bestVal + " maxima");
+
+			// Output number of maxima detected to file
+			print(fileMaxima, list[i] + ": " + bestVal);
+
+			// Store a running total of the number of detected maxima
+			total += bestVal;
+
+		}
+
+	}
+
+	// Output total number of detected maxima to file
+	print(fileMaxima, "\nTotal number of detections: " + total);
+
+	// Close file
+	File.close(fileMaxima);
+}
+
+// Define function to process target files
+function processFile(input, output, file, sigma) {
+
+	// Open file
+	open(input + "/" + file);
+	original = getTitle();
+
+	// Duplicate only channel 3
+	run("Duplicate...", "duplicate channels=3");
+	ch3 = getTitle();
+
+	// Take Z-projection of channel 3
+	run("Z Project...", "projection=[Max Intensity]");
+
+	// Apply Gaussian blur filter
+	run("Gaussian Blur...", "sigma=" + sigma);
+	// run("Convolve...", "text1=[-1 -1 -1\n-1 8 -1\n-1 -1 -1]");
+
+	// Close unneeded images
+	close(ch3);
+	close(original);
+
+	// Find maxima in projected image
+	run("Find Maxima...", "prominence=80 output=List");
+
+	// Store number of detected maxima
+	nMaxima = nResults;
+
+	// Select results window
+	close();
+	selectWindow("Results");
+
+	// Save result to output fileselectWindow("Results"); 
+	saveAs("results", output + "/" + File.nameWithoutExtension + "_results.csv");
+	run("Close"); // Close results window (not technically required)
+
+	// Return number of detected maxima
+	return nMaxima;
+}</code></pre>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>Task 3</b></h2>
+  
+  <b>Create a macro that:</b>
+  <br/><br/>
+  
+  <ol>
+    <li>Opens every image and performs a Z-projection on the fluorescence channel
+    <br/><br/>
+    <li>Applies Gaussian blur filters of different widths to the Z-projection
+    <br/><br/>
+    <li>Counts the foci in the each image using whichever method you prefer
+    <br/><br/>
+    <li>Stores the number of maxima for each gaussian width in an array and prints them
+    <br/><br/>
+    <li>Finds the Gaussian width that generates the least maxima
+    <br/><br/>
+    <li>Saves a csv file with the total minimum number of foci in all images in the folder
+  </ol>
+  <br/><br/>
+  
+  <b>Hint:</b> look at the lecture notes on <a href="https://lmosby.github.io/IntroProgrammingIJ">programming in Fiji</a>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>(Previous session) Task 3 Example Solution</b></h2>
+  
+  <pre><code class="C">// Macro template to process multiple images in a folder
+
+// Open input window to enter input folder, output folder, and target suffix
+#@ File (label = "Input directory", style = "directory") input
+#@ File (label = "Output directory", style = "directory") output
+#@ String (label = "File suffix", value = ".tif") suffix
+
+// See also Process_Folder.py for a version of this code in the Python scripting language.
+
+// Define maximum sigma (width of Gaussian) used for filtering
+sigmaMax = 4;
+
+// Use defined function(s)
+processFolder(input);
+
+// Define function to scan folders/subfolders/files to find files with correct suffix
+function processFolder(input) {
+
+	// Initialise total number of detected maxima
+	total = 0;
+
+	// Open file to store number of detected maxima
+	fileMaxima = File.open(output + File.separator + "Totals.csv");
+
+	// Find (ordered) list of files in folder
+	list = getFileList(input);
+	list = Array.sort(list);
+
+	// Loop over all files in folder
+	for (i = 0; i < list.length; i++) {
+
+		// If file is another folder, repeat process until individual file is found
+		if(File.isDirectory(input + File.separator + list[i]))
+			processFolder(input + File.separator + list[i]);
+
+		// If file is not a folder and ends with correct suffix, process using other function
+		if(endsWith(list[i], suffix)) {
+			print("File: " + list[i]);
+
+			// Initialise array to store numbre of maxima for each value of sigma
+			numbers = newArray(sigmaMax);
+
+			// Initialise variables to store value of sigma that finds the least objects
+			bestVal = 10000;
+			bestInd = sigmaMax + 1;
+
+			// Loop over different values of sigma
+			for (j = 0; j < sigmaMax; j++) {
+
+				// Find number of maxima in Z-projection of stack after Gaussian blurring
+				numbers[j] = processFile(input, output, list[i], j);
+
+				// Find best value of sigma
+				if (numbers[j] < bestVal) {
+
+					bestVal = numbers[j];
+					bestInd = j;
+
+				}
+			}
+
+			// Print array containing numbre of maxima for each value of sigma
+			Array.print(numbers);
+
+			// Print results for best value of sigma
+			print("   best value = " + bestInd + " -> " + bestVal + " maxima");
+
+			// Output number of maxima detected to file
+			print(fileMaxima, list[i] + ": " + bestVal);
+
+			// Store a running total of the number of detected maxima
+			total += bestVal;
+
+		}
+
+	}
+
+	// Output total number of detected maxima to file
+	print(fileMaxima, "\nTotal number of detections: " + total);
+
+	// Close file
+	File.close(fileMaxima);
+}
+
+// Define function to process target files
+function processFile(input, output, file, sigma) {
+
+	// Open file
+	open(input + "/" + file);
+	original = getTitle();
+
+	// Duplicate only channel 3
+	run("Duplicate...", "duplicate channels=3");
+	ch3 = getTitle();
+
+	// Take Z-projection of channel 3
+	run("Z Project...", "projection=[Max Intensity]");
+
+	// Apply Gaussian blur filter
+	run("Gaussian Blur...", "sigma=" + sigma);
+	// run("Convolve...", "text1=[-1 -1 -1\n-1 8 -1\n-1 -1 -1]");
+
+	// Close unneeded images
+	close(ch3);
+	close(original);
+
+	// Find maxima in projected image
+	run("Find Maxima...", "prominence=80 output=List");
+
+	// Store number of detected maxima
+	nMaxima = nResults;
+
+	// Select results window
+	close();
+	selectWindow("Results");
+
+	// Save result to output fileselectWindow("Results"); 
+	saveAs("results", output + "/" + File.nameWithoutExtension + "_results.csv");
+	run("Close"); // Close results window (not technically required)
+
+	// Return number of detected maxima
+	return nMaxima;
+}</code></pre>
+  
+</section>
+
+
+
+<section data-state="intro0">
+  <h2><b>Last Few Things</b></h2>
+  
+  <ul>
+    <li><b>Good luck with the assignment!</b>
+    <li>All details should be on Moodle
+    <li>If anything is unclear contact us at:
+    <ul>
+      <li>sam.garforth@warwick.ac.uk
+      <li>Daniel.J.Moore@warwick.ac.uk
+      <li>L.S.Mosby@warwick.ac.uk
+    </ul>
+    <li>Help each other (within reason)
+  </ul>
+  
+</section>
+
+
+
+</div>
+
+<img style="position:fixed;bottom:1em;right:1em;" src="img/logo_WMS.jpg" width="10%">
+</div>
+
+    <script src="lib/js/head.min.js"></script>
+<script src="js/reveal.js"></script>
+
+<script>
+// More info about config & dependencies:
+// - https://github.com/hakimel/reveal.js#configuration
+// - https://github.com/hakimel/reveal.js#dependencies
+Reveal.initialize({
+    controls: false,
+    slideNumber: true, //-- Added for development
+dependencies: [
+{ src: 'plugin/markdown/marked.js' },
+{ src: 'plugin/markdown/markdown.js' },
+{ src: 'plugin/notes/notes.js', async: true },
+{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+{ src: 'plugin/menu/menu.js' }
+],
+menu: {
+hideMissingTitles: true,
+themes: false,
+transitions: false,
+//markers: true,
+numbers: true,
+openButton: false,
+titleSelector: 'span.menu-title'
+}
+});
+</script>
+</body>
+</html>
+
